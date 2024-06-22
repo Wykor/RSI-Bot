@@ -1,22 +1,42 @@
-import discord
-import asyncio
-import os
-from dotenv import load_dotenv
-load_dotenv()
 
+import discord
+import os
+import asyncio
+import logging
+
+from discord.ext import commands
+from dotenv import load_dotenv
+from db_helpers import add_alert_channel
+from models import AlertChannel
+from db_setup import Session
+
+load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-ALERTS_CHANNEL_ID = int(os.getenv('ALERTS_CHANNEL_ID'))
+
+logger = logging.getLogger(__name__)
 
 intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+session = Session()
 
-client = discord.Client(intents=intents)
-
-@client.event
+@bot.event
 async def on_ready():
-    print('Logged on as', client.user)
-    channel = client.get_channel(ALERTS_CHANNEL_ID)
+    logger.info('Logged on as', bot.user.name)
     while True:
-        await channel.send('Hello!')
+        for channel_obj in session.query(AlertChannel).all():
+            channel = bot.get_channel(int(channel_obj.channel_id))
+            await channel.send('This is an alert!')
         await asyncio.sleep(60)
 
-client.run(TOKEN)
+@bot.command(name='setup_alerts')
+async def setup_alerts(ctx):
+    channel = ctx.channel
+
+    success = add_alert_channel(session, channel.id)
+    if success:
+        await ctx.send(f'Alerts setup for {channel.name}!')
+    else:
+        await ctx.send(f'Alerts already setup for {channel.name}!')
+
+bot.run(TOKEN)
