@@ -1,3 +1,4 @@
+import datetime
 import os
 from dotenv import load_dotenv
 
@@ -44,7 +45,7 @@ class RSICalculator:
         return rsi
 
     def calculate_rsi_from_kline(self, kline):
-        close_prices = [float(bar['close']) for bar in reversed(kline['result']['list'])]
+        close_prices = [float(bar[4]) for bar in reversed(kline['result']['list'])]
         
         average_gain, average_loss = self.calculate_avg_gain_lose(close_prices)
 
@@ -55,7 +56,8 @@ class RSICalculator:
     def get_rsi(self, symbol, timeframe=60, periods=14):
         rsi = get_latest_rsi(self.db_session, symbol)
         kline = self.api_session.get_kline(symbol=symbol, interval=timeframe, limit=periods)
-        latest_bar_close_at = kline['result']['list'][-1][0]
+        latest_bar_close_at_timestamp = int(int(kline['result']['list'][0][0]) / 1000)
+        latest_bar_close_at = datetime.datetime.fromtimestamp(latest_bar_close_at_timestamp)
         if rsi is None or rsi.latest_bar_close_at != latest_bar_close_at:
             new_rsi = self.calculate_rsi_from_kline(kline)
             rsi = create_rsi(self.db_session, symbol, new_rsi, latest_bar_close_at)
