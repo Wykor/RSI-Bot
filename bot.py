@@ -6,6 +6,7 @@ import logging
 
 from discord.ext import commands
 from dotenv import load_dotenv
+from api import RSICalculator
 from db_helpers import add_alert_channel
 from models import AlertChannel
 from db_setup import Session
@@ -19,15 +20,28 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 session = Session()
+rsi_calculator = RSICalculator(session)
+
+async def send_alert(alert):
+    for channel_obj in session.query(AlertChannel).all():
+        channel = bot.get_channel(int(channel_obj.channel_id))
+        await channel.send(alert)
+
+async def check_rsi():
+    rsi = rsi_calculator.get_rsi('SOLUSDT')
+    if rsi is not None: 
+        if rsi < 30:
+            await send_alert('SOL RSI is below 30!')
+        elif rsi > 70:
+            await send_alert('SOL RSI is above 70!')
+
 
 @bot.event
 async def on_ready():
     logger.info('Logged on as', bot.user.name)
     while True:
-        for channel_obj in session.query(AlertChannel).all():
-            channel = bot.get_channel(int(channel_obj.channel_id))
-            await channel.send('This is an alert!')
-        await asyncio.sleep(60)
+        await check_rsi()
+        await asyncio.sleep(5)
 
 @bot.command(name='setup_alerts')
 async def setup_alerts(ctx):
